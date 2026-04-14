@@ -17,23 +17,31 @@ export default async function handler(req, res) {
   const credentials = Buffer.from(`${keyId}:${secret}`).toString('base64');
 
   // Job ID로 상태 조회
-  if (jobId) {
+if (jobId) {
+  try {
+    const pollRes = await fetch(
+      `https://api.cloud.scenario.com/v1/jobs/${jobId}?projectId=proj_gp2NkPp1GQsFKnFjHroTfJhm`,
+      {
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    
+    const text = await pollRes.text();
+    
     try {
-      const pollRes = await fetch(
-        `https://api.cloud.scenario.com/v1/jobs/${jobId}?projectId=proj_gp2NkPp1GQsFKnFjHroTfJhm`
-        {
-          headers: {
-            'Authorization': `Basic ${credentials}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-      const pollData = await pollRes.json();
+      const pollData = JSON.parse(text);
       return res.status(200).json(pollData);
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
+    } catch(e) {
+      return res.status(500).json({ error: 'Scenario 응답 오류: ' + text.substring(0, 200) });
     }
+    
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
+}
 
   if (!prompt) {
     return res.status(400).json({ error: 'prompt가 필요해요' });
