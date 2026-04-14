@@ -101,21 +101,29 @@ function translateToPrompt(t) {
   return 'okstyle, 3D clay icon, ' + e + ', inflated plastic texture, soft shadow, isometric angle, transparent background, Korean fintech app icon style, vibrant colors';
 }
 
+// Scenario 응답에서 이미지 URL 찾기
 function findImageUrl(data) {
-  // 다양한 응답 형식에서 이미지 URL 찾기
-  return data?.images?.[0]?.url
+  return data?.job?.images?.[0]?.url
+    || data?.images?.[0]?.url
     || data?.output?.[0]
     || data?.image
-    || data?.result?.images?.[0]?.url
     || null;
 }
 
+// Scenario 응답에서 Job ID 찾기
 function findJobId(data) {
-  return data?.id || data?.jobId || data?.inferenceId || data?.inference?.id || null;
+  return data?.job?.jobId    // ← 실제 응답 구조
+    || data?.jobId
+    || data?.id
+    || data?.inferenceId
+    || null;
 }
 
+// Scenario 응답에서 상태 찾기
 function findStatus(data) {
-  return data?.status || data?.inference?.status || null;
+  return data?.job?.status
+    || data?.status
+    || null;
 }
 
 async function pollJob(jobId, prompt) {
@@ -132,13 +140,10 @@ async function pollJob(jobId, prompt) {
     const status = findStatus(data);
     const imageUrl = findImageUrl(data);
 
-    if (imageUrl) {
-      return imageUrl;
-    }
+    console.log(`폴링 ${i+1}번째, status: ${status}`, data);
 
-    if (status === 'failed') {
-      throw new Error('이미지 생성에 실패했어요');
-    }
+    if (imageUrl) return imageUrl;
+    if (status === 'failed') throw new Error('이미지 생성에 실패했어요');
   }
   throw new Error('시간이 초과됐어요. 다시 시도해주세요.');
 }
@@ -159,7 +164,6 @@ async function generate() {
   document.getElementById('step2').style.display = 'none';
 
   try {
-    // 1단계: 생성 요청 → Job ID 받기
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -172,12 +176,9 @@ async function generate() {
     document.getElementById('step1').style.display = 'none';
     document.getElementById('step2').style.display = 'flex';
 
-    // 즉시 이미지 URL이 있으면 바로 표시
+    // 즉시 이미지 URL 있으면 바로 표시
     const immediateUrl = findImageUrl(data);
-    if (immediateUrl) {
-      showResult(immediateUrl, prompt);
-      return;
-    }
+    if (immediateUrl) { showResult(immediateUrl, prompt); return; }
 
     // Job ID로 폴링
     const jobId = findJobId(data);
