@@ -72,7 +72,7 @@
       <div class="spinner"></div>
       <div>
         <div class="step" id="step1"><div class="dot"></div><span class="step-text">생성 요청 중...</span></div>
-        <div class="step" id="step2" style="display:none"><div class="dot"></div><span class="step-text">AI가 일러스트 생성 중... (10~30초 소요)</span></div>
+        <div class="step" id="step2" style="display:none"><div class="dot"></div><span class="step-text">AI가 일러스트 생성 중... (30초~2분 소요)</span></div>
       </div>
       <div class="loading-prompt" id="loadingPrompt"></div>
     </div>
@@ -98,38 +98,19 @@ function translateToPrompt(t) {
   };
   let e = t;
   Object.entries(map).forEach(([k,v]) => { e = e.replace(new RegExp(k,'g'), v); });
-  return 'okicon style, 3D icon, ' + e + ', inflated plastic texture, soft shadow, isometric angle, transparent background, Korean fintech app icon style, vibrant colors';
+  return 'okicon style, ' + e + ', 3d illustration, isometric angle, transparent background, Korean fintech app icon style';
 }
 
-// Scenario 응답에서 이미지 URL 찾기
-function findImageUrl(data) {
-  return data?.job?.images?.[0]?.url
-    || data?.job?.asset?.url
-    || data?.images?.[0]?.url
-    || data?.output?.[0]
-    || null;
-}
-
-// Scenario 응답에서 Job ID 찾기
 function findJobId(data) {
-  return data?.job?.jobId    // ← 실제 응답 구조
+  return data?.job?.jobId
     || data?.jobId
     || data?.id
-    || data?.inferenceId
     || null;
 }
 
-// Scenario 응답에서 상태 찾기
-function findStatus(data) {
-  return data?.job?.status
-    || data?.status
-    || null;
-}
-
-async function pollJob(jobId, prompt) {
-// 수정 (60번 × 5초 = 300초 = 5분)
-for (let i = 0; i < 60; i++) {
-  await new Promise(r => setTimeout(r, 5000));
+async function pollJob(jobId) {
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 5000));
 
     const res = await fetch('/api/generate', {
       method: 'POST',
@@ -138,13 +119,12 @@ for (let i = 0; i < 60; i++) {
     });
 
     const data = await res.json();
-    const status = findStatus(data);
-    const imageUrl = findImageUrl(data);
+    console.log(`폴링 ${i+1}번째, status: ${data.status}`, data);
 
-    console.log(`폴링 ${i+1}번째, status: ${status}`, data);
-
-    if (imageUrl) return imageUrl;
-    if (status === 'failed') throw new Error('이미지 생성에 실패했어요');
+    if (data.imageUrl) return data.imageUrl;
+    if (data.status === 'failure' || data.status === 'failed') {
+      throw new Error('이미지 생성에 실패했어요');
+    }
   }
   throw new Error('5분이 초과됐어요. 다시 시도해주세요.');
 }
@@ -177,15 +157,12 @@ async function generate() {
     document.getElementById('step1').style.display = 'none';
     document.getElementById('step2').style.display = 'flex';
 
-    // 즉시 이미지 URL 있으면 바로 표시
-    const immediateUrl = findImageUrl(data);
-    if (immediateUrl) { showResult(immediateUrl, prompt); return; }
+    if (data.imageUrl) { showResult(data.imageUrl, prompt); return; }
 
-    // Job ID로 폴링
     const jobId = findJobId(data);
     if (!jobId) throw new Error('Job ID를 받지 못했어요: ' + JSON.stringify(data));
 
-    const imageUrl = await pollJob(jobId, prompt);
+    const imageUrl = await pollJob(jobId);
     showResult(imageUrl, prompt);
 
   } catch(e) {
