@@ -98,7 +98,7 @@ function translateToPrompt(t) {
   };
   let e = t;
   Object.entries(map).forEach(([k,v]) => { e = e.replace(new RegExp(k,'g'), v); });
-  return 'okstyle, 3D clay icon, ' + e + ', inflated plastic texture, soft shadow, isometric angle, transparent background, Korean fintech app icon style, vibrant colors';
+  return 'okicon style, 3D icon, ' + e + ', inflated plastic texture, soft shadow, isometric angle, transparent background, Korean fintech app icon style, vibrant colors';
 }
 
 // Scenario 응답에서 이미지 URL 찾기
@@ -127,8 +127,9 @@ function findStatus(data) {
 }
 
 async function pollJob(jobId, prompt) {
-  for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 3000));
+// 수정 (60번 × 5초 = 300초 = 5분)
+for (let i = 0; i < 60; i++) {
+  await new Promise(r => setTimeout(r, 5000));
 
     const res = await fetch('/api/generate', {
       method: 'POST',
@@ -145,7 +146,7 @@ async function pollJob(jobId, prompt) {
     if (imageUrl) return imageUrl;
     if (status === 'failed') throw new Error('이미지 생성에 실패했어요');
   }
-  throw new Error('시간이 초과됐어요. 다시 시도해주세요.');
+  throw new Error('5분이 초과됐어요. 다시 시도해주세요.');
 }
 
 async function generate() {
