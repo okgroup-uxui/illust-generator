@@ -9,21 +9,21 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'prompt가 필요해요' });
   }
 
-  // API Key는 Vercel 환경변수에서 가져옴 (사용자에게 노출 안 됨)
   const apiKey = process.env.SCENARIO_API_KEY;
   const MODEL_ID = 'model_CPxGWWCNz5TRs2cPbdQGoz2a';
 
   if (!apiKey) {
-    return res.status(500).json({ error: 'API Key가 설정되지 않았어요 (환경변수 확인 필요)' });
+    return res.status(500).json({ error: 'API Key가 설정되지 않았어요' });
   }
 
   try {
+    // Scenario API는 키를 그대로 Bearer로 사용
     const inferenceRes = await fetch(
       `https://api.scenario.com/v1/models/${MODEL_ID}/inferences`,
       {
         method: 'POST',
         headers: {
-          Authorization: `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -40,16 +40,21 @@ export default async function handler(req, res) {
       }
     );
 
+    const inferenceData = await inferenceRes.json();
+
     if (!inferenceRes.ok) {
-      const err = await inferenceRes.json();
-      return res.status(inferenceRes.status).json({ error: err.message || 'Scenario API 오류' });
+      console.error('Scenario inference error:', JSON.stringify(inferenceData));
+      return res.status(inferenceRes.status).json({ 
+        error: inferenceData?.message || inferenceData?.error || 'Scenario API 오류',
+        detail: inferenceData
+      });
     }
 
-    const inferenceData = await inferenceRes.json();
     const inferenceId = inferenceData.inference?.id;
 
     if (!inferenceId) {
-      return res.status(500).json({ error: 'Inference ID를 받지 못했어요' });
+      console.error('No inference ID:', JSON.stringify(inferenceData));
+      return res.status(500).json({ error: 'Inference ID를 받지 못했어요', detail: inferenceData });
     }
 
     // 결과 폴링
@@ -60,7 +65,7 @@ export default async function handler(req, res) {
         `https://api.scenario.com/v1/generate/inferences/${inferenceId}`,
         {
           headers: {
-            Authorization: `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
         }
@@ -69,6 +74,8 @@ export default async function handler(req, res) {
       const pollData = await pollRes.json();
       const status = pollData.inference?.status;
 
+      console.log(`Polling attempt ${i + 1}, status: ${status}`);
+
       if (status === 'succeeded') {
         const imageUrl = pollData.inference?.images?.[0]?.url;
         if (!imageUrl) return res.status(500).json({ error: '이미지 URL을 받지 못했어요' });
@@ -76,13 +83,14 @@ export default async function handler(req, res) {
       }
 
       if (status === 'failed') {
-        return res.status(500).json({ error: '이미지 생성에 실패했어요' });
+        return res.status(500).json({ error: '이미지 생성에 실패했어요', detail: pollData });
       }
     }
 
     return res.status(408).json({ error: '시간이 초과됐어요. 다시 시도해주세요.' });
 
   } catch (err) {
+    console.error('Handler error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
