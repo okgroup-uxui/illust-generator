@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   if (jobId) {
     try {
       const pollRes = await fetch(
-        `https://api.cloud.scenario.com/v1/generate/jobs/${jobId}`,
+        `https://api.cloud.scenario.com/v1/jobs/${jobId}?projectId=proj_gp2NkPp1GQsFKnFjHroTfJhm`
         {
           headers: {
             'Authorization': `Basic ${credentials}`,
