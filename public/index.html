@@ -104,9 +104,9 @@ function translateToPrompt(t) {
 // Scenario 응답에서 이미지 URL 찾기
 function findImageUrl(data) {
   return data?.job?.images?.[0]?.url
+    || data?.job?.asset?.url
     || data?.images?.[0]?.url
     || data?.output?.[0]
-    || data?.image
     || null;
 }
 
