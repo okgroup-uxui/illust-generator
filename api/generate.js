@@ -16,7 +16,7 @@ export default async function handler(req, res) {
 
   const credentials = Buffer.from(`${keyId}:${secret}`).toString('base64');
 
-  // Job ID가 있으면 상태 조회 (프론트에서 폴링)
+  // Job ID로 상태 조회
   if (jobId) {
     try {
       const pollRes = await fetch(
@@ -35,12 +35,11 @@ export default async function handler(req, res) {
     }
   }
 
-  // 프롬프트가 없으면 에러
   if (!prompt) {
     return res.status(400).json({ error: 'prompt가 필요해요' });
   }
 
-  // 이미지 생성 요청 → Job ID만 받아서 즉시 반환
+  // 이미지 생성 요청
   try {
     const inferenceRes = await fetch(
       `https://api.cloud.scenario.com/v1/generate/custom/${BASE_MODEL}`,
@@ -74,7 +73,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Job ID 즉시 반환 (폴링은 프론트에서)
     return res.status(200).json(data);
 
   } catch (err) {
