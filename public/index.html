@@ -1716,7 +1716,7 @@ async function pollJob(jobId){
   ];
   let msgIdx=0;
 
-  for(let i=0;i<60;i++){
+  for(let i=0;i<150;i++){
     await new Promise(r=>setTimeout(r,2000)); // 5초 → 2초
 
     // 경과 시간 + 상태 메시지 업데이트
@@ -1745,7 +1745,7 @@ async function pollJob(jobId){
     if(data.imageUrl) return data.imageUrl;
     if(data.status==='failure'||data.status==='failed') throw new Error('이미지 생성에 실패했어요');
   }
-  throw new Error('2분이 초과됐어요. 다시 시도해주세요.');
+  throw new Error('5분이 초과됐어요. 다시 시도해주세요.');
 }
 
 // s3 상태 메시지 업데이트
