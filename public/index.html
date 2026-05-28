@@ -1708,19 +1708,44 @@ function findJobId(data){
 }
 
 async function pollJob(jobId){
+  const pollStart=Date.now();
+  // 폴링 중 s3 상태 메시지 순환
+  const pollMsgs=[
+    'GPU RENDERING...','DIFFUSION PASS...','DETAIL PASS...','COLOR GRADING...',
+    'UPSCALING...','COMPOSITING...','ALMOST THERE...','FINALIZING...',
+  ];
+  let msgIdx=0;
+
   for(let i=0;i<60;i++){
-    await new Promise(r=>setTimeout(r,5000));
+    await new Promise(r=>setTimeout(r,2000)); // 5초 → 2초
+
+    // 경과 시간 + 상태 메시지 업데이트
+    const elapsed=Math.round((Date.now()-pollStart)/1000);
+    const el=document.getElementById('s3Label');
+    const st=document.querySelector('.s3-status');
+    if(el) el.textContent=pollMsgs[msgIdx%pollMsgs.length];
+    if(st) st.textContent=`PROCESSING · ${elapsed}s elapsed · · ·`;
+    msgIdx++;
+
+    // 바를 60%~95% 사이에서 천천히 채움
+    const capPct=Math.min(95, 60+(elapsed/120)*35);
+    const fill=document.getElementById('s3Fill');
+    const pe=document.getElementById('s3Pct');
+    if(fill) fill.style.width=capPct+'%';
+    if(pe) pe.textContent=Math.round(capPct)+'%';
+    s3Pct=capPct;
+
     const res=await fetch('/api/generate',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({jobId}),
     });
     const data=await res.json();
-    console.log(`폴링 ${i+1}번째, status: ${data.status}`,data);
+    console.log(`폴링 ${i+1}번째 (${elapsed}s), status: ${data.status}`,data);
     if(data.imageUrl) return data.imageUrl;
     if(data.status==='failure'||data.status==='failed') throw new Error('이미지 생성에 실패했어요');
   }
-  throw new Error('5분이 초과됐어요. 다시 시도해주세요.');
+  throw new Error('2분이 초과됐어요. 다시 시도해주세요.');
 }
 
 // s3 상태 메시지 업데이트
