@@ -539,10 +539,48 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);}
 .overlay.fade{opacity:1;}
 
 /* ── S3: 생성 중 ────────────────────────────────── */
-#s3{gap:0;}
+#s3{gap:0;overflow:hidden;}
+
+/* 배경 데이터 스트림 */
+#s3DataStream{
+  position:absolute;inset:0;pointer-events:none;z-index:0;
+  overflow:hidden;
+}
+.ds-col{
+  position:absolute;top:0;
+  font-family:'Orbitron',monospace;font-size:10px;
+  color:rgba(224,125,8,0.18);
+  white-space:nowrap;line-height:1.6;
+  animation:ds-fall linear infinite;
+}
+@keyframes ds-fall{
+  0%{transform:translateY(-100%);}
+  100%{transform:translateY(100vh);}
+}
+
+/* 오브 주변 파티클 캔버스 */
+#s3ParticleCanvas{
+  position:absolute;inset:0;pointer-events:none;z-index:1;
+}
+
+/* 가로 스캔라인 */
+#s3Scanline{
+  position:absolute;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(224,125,8,0.5),transparent);
+  box-shadow:0 0 12px rgba(224,125,8,0.3);
+  pointer-events:none;z-index:2;
+  animation:scanline-move 3s linear infinite;
+}
+@keyframes scanline-move{
+  0%{top:0%;opacity:0;}
+  5%{opacity:1;}
+  95%{opacity:1;}
+  100%{top:100%;opacity:0;}
+}
 
 .s3-header{
-  text-align:center;margin-bottom:clamp(20px,4vh,40px);
+  text-align:center;margin-bottom:clamp(16px,3vh,32px);
+  position:relative;z-index:3;
 }
 .s3-tag{
   font-family:'Orbitron',monospace;font-size:10px;letter-spacing:0.35em;
@@ -559,21 +597,24 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);}
 .s3-orb{
   position:relative;
   display:flex;align-items:center;justify-content:center;
+  z-index:3;
 }
 
 /* 프롬프트 텍스트 */
 .s3-prompt{
-  margin-top:clamp(16px,3vh,28px);
+  margin-top:clamp(12px,2vh,20px);
   font-family:'Noto Sans KR',sans-serif;font-size:14px;
   color:rgba(224,125,8,0.80);text-align:center;
   max-width:320px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  position:relative;z-index:3;
 }
 
 /* 로딩 바 */
 .s3-bar-wrap{
-  margin-top:clamp(14px,2.5vh,24px);
+  margin-top:clamp(12px,2vh,20px);
   width:clamp(220px,42vw,340px);
+  position:relative;z-index:3;
 }
 .s3-bar-track{
   width:100%;height:3px;
@@ -598,6 +639,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);}
   font-family:'Orbitron',monospace;font-size:9px;letter-spacing:0.2em;
   color:rgba(224,125,8,0.70);
   animation:fadepulse 1.5s ease-in-out infinite;
+  position:relative;z-index:3;
 }
 
 /* ── S4: 결과 화면 ─────────────────────────────── */
@@ -935,6 +977,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);}
 
   <!-- S3: 생성 중 -->
   <div id="s3" class="overlay">
+    <!-- 배경 데이터 스트림 -->
+    <div id="s3DataStream"></div>
+    <!-- 파티클 캔버스 -->
+    <canvas id="s3ParticleCanvas"></canvas>
+    <!-- 스캔라인 -->
+    <div id="s3Scanline"></div>
+
     <div class="s3-header">
       <div class="s3-tag">AI IMAGE STUDIO · PROCESSING</div>
       <div class="s3-title">OKO가 <b>이미지를 생성</b>하고 있습니다</div>
@@ -950,7 +999,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);}
         <span class="s3-bar-pct" id="s3Pct">0%</span>
       </div>
     </div>
-    <div class="s3-status">PROCESSING · NEURAL RENDER ENGINE · · ·</div>
+    <div class="s3-status" id="s3Status">PROCESSING · NEURAL RENDER ENGINE · · ·</div>
   </div>
 
   <!-- S4: 결과 -->
@@ -1683,6 +1732,125 @@ pInput.addEventListener('blur',()=>{
 
 // genBtn — 입력 없으면 shake + error 표시
 /* ═══════════════════════════════════════════════
+   S3 시각 효과 — 파티클 + 데이터 스트림
+═══════════════════════════════════════════════ */
+const s3Chars='0123456789ABCDEF·:>%#@!$&*';
+let s3FxRunning=false;
+let s3PfxId=null;
+
+// 데이터 스트림 컬럼 생성
+function initS3DataStream(){
+  const wrap=document.getElementById('s3DataStream');
+  if(!wrap) return;
+  wrap.innerHTML='';
+  const cols=Math.floor(window.innerWidth/28);
+  for(let i=0;i<cols;i++){
+    const col=document.createElement('div');
+    col.className='ds-col';
+    col.style.left=(i*28)+'px';
+    col.style.animationDuration=(4+Math.random()*6)+'s';
+    col.style.animationDelay=(-Math.random()*6)+'s';
+    col.style.opacity=(0.05+Math.random()*0.15).toFixed(2);
+    let txt='';
+    for(let j=0;j<28;j++) txt+=s3Chars[Math.floor(Math.random()*s3Chars.length)]+'<br>';
+    col.innerHTML=txt;
+    wrap.appendChild(col);
+  }
+  // 1초마다 일부 컬럼 글자 랜덤 교체
+  return setInterval(()=>{
+    const cols2=wrap.querySelectorAll('.ds-col');
+    cols2.forEach(c=>{
+      if(Math.random()<0.3){
+        let t='';
+        for(let j=0;j<28;j++) t+=s3Chars[Math.floor(Math.random()*s3Chars.length)]+'<br>';
+        c.innerHTML=t;
+      }
+    });
+  },800);
+}
+
+// 파티클 시스템
+function initS3Particles(){
+  const cv=document.getElementById('s3ParticleCanvas');
+  if(!cv) return null;
+  const ctx=cv.getContext('2d');
+
+  function resize(){
+    const s3el=document.getElementById('s3');
+    cv.width=s3el.clientWidth||window.innerWidth;
+    cv.height=s3el.clientHeight||window.innerHeight;
+  }
+  resize();
+
+  // 오브 중심 기준 파티클 생성
+  const particles=Array.from({length:55},()=>({
+    angle:Math.random()*Math.PI*2,
+    radius:80+Math.random()*100,
+    speed:(0.003+Math.random()*0.008)*(Math.random()<0.5?1:-1),
+    size:Math.random()<0.3?2:1,
+    alpha:0.2+Math.random()*0.6,
+    pulse:Math.random()*Math.PI*2,
+    pulseSpeed:0.02+Math.random()*0.04,
+    color:Math.random()<0.6?'224,125,8':'245,170,32',
+  }));
+
+  let rafId;
+  function draw(){
+    if(!s3FxRunning) return;
+    resize();
+    ctx.clearRect(0,0,cv.width,cv.height);
+    const cx=cv.width/2, cy=cv.height/2;
+
+    particles.forEach(p=>{
+      p.angle+=p.speed;
+      p.pulse+=p.pulseSpeed;
+      const a=p.alpha*(0.5+0.5*Math.sin(p.pulse));
+      const px=cx+Math.cos(p.angle)*p.radius;
+      const py=cy+Math.sin(p.angle)*p.radius;
+
+      // 글로우
+      const g=ctx.createRadialGradient(px,py,0,px,py,p.size*4);
+      g.addColorStop(0,`rgba(${p.color},${a})`);
+      g.addColorStop(1,`rgba(${p.color},0)`);
+      ctx.fillStyle=g;
+      ctx.beginPath();ctx.arc(px,py,p.size*4,0,Math.PI*2);ctx.fill();
+
+      // 코어
+      ctx.fillStyle=`rgba(${p.color},${Math.min(1,a*1.5)})`;
+      ctx.beginPath();ctx.arc(px,py,p.size,0,Math.PI*2);ctx.fill();
+
+      // 궤도 흔적
+      ctx.strokeStyle=`rgba(${p.color},${a*0.15})`;
+      ctx.lineWidth=0.5;
+      ctx.beginPath();
+      ctx.arc(cx,cy,p.radius,p.angle-0.3,p.angle);
+      ctx.stroke();
+    });
+
+    rafId=requestAnimationFrame(draw);
+  }
+  draw();
+  return ()=>cancelAnimationFrame(rafId);
+}
+
+// s3 활성화 시 시작, 비활성화 시 정지
+let s3StreamInterval=null;
+let s3ParticleStop=null;
+
+function startS3Fx(){
+  s3FxRunning=true;
+  s3StreamInterval=initS3DataStream();
+  s3ParticleStop=initS3Particles();
+}
+function stopS3Fx(){
+  s3FxRunning=false;
+  if(s3StreamInterval){clearInterval(s3StreamInterval);s3StreamInterval=null;}
+  if(s3ParticleStop){s3ParticleStop();s3ParticleStop=null;}
+  const wrap=document.getElementById('s3DataStream');
+  if(wrap) wrap.innerHTML='';
+}
+
+/* ═══════════════════════════════════════════════
    IMAGE GENERATION API
 ═══════════════════════════════════════════════ */
 
@@ -1839,6 +2007,7 @@ document.getElementById('genBtn').addEventListener('click',async()=>{
 
   // s3 overlay 표시 후 API 호출
   showOverlay('s3',async()=>{
+    startS3Fx(); // 파티클 + 데이터 스트림 시작
     try{
       const {imageUrl,prompt}=await generateImage(val);
 
@@ -1851,6 +2020,7 @@ document.getElementById('genBtn').addEventListener('click',async()=>{
       if(el) el.textContent='COMPLETE';
 
       await new Promise(r=>setTimeout(r,400));
+      stopS3Fx(); // 파티클 정지
 
       // s4로 전환하며 실제 이미지 표시
       showOverlay('s4',()=>{
@@ -1890,6 +2060,7 @@ document.getElementById('genBtn').addEventListener('click',async()=>{
       });
 
     } catch(err){
+      stopS3Fx();
       // 에러 시 메인으로 복귀 + 에러 메시지
       hideOverlay();
       setTimeout(()=>{
